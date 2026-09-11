@@ -1,0 +1,38 @@
+# Gradle 构建目录与缓存
+.gradle/
+build/
+app/build/
+
+# Kotlin 编译缓存
+.kotlin/
+
+# 本地环境配置（含 SDK 路径，不入库）
+local.properties
+
+# IDE 配置
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+captures/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 构建产物与安装包
+成品/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output.json
+*.log
+
+# 签名文件与密钥（严禁入库）
+*.jks
+*.keystore
+signing.properties

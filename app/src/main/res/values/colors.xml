@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 糖果马卡龙色表，严格对齐 PC 端《App端对接规格说明》第9章 -->
+    <color name="color_bg">#EAFCF0</color>
+    <color name="color_panel">#FFFFFF</color>
+    <color name="color_border">#B8EED0</color>
+    <color name="color_text">#3A4A42</color>
+
+    <color name="color_title">#2BB673</color>
+    <color name="color_title_dark">#12A35C</color>
+    <color name="color_title_light">#7FE8B0</color>
+
+    <color name="color_green">#3BC96E</color>
+    <color name="color_green_light">#7DE3A4</color>
+    <color name="color_green_dark">#22A856</color>
+
+    <color name="color_blue">#3FB8FF</color>
+    <color name="color_blue_light">#7FD3FF</color>
+    <color name="color_blue_dark">#1E9FE8</color>
+
+    <color name="color_orange">#FFA45E</color>
+    <color name="color_orange_light">#FFC48C</color>
+    <color name="color_orange_dark">#F58B36</color>
+
+    <color name="color_pink">#FF8FB3</color>
+    <color name="color_pink_light">#FFC4D9</color>
+
+    <color name="color_meal_bg">#FFF6E9</color>
+    <color name="color_meal_bg2">#FFE3C9</color>
+    <color name="color_meal_border">#FFD2A8</color>
+
+    <color name="color_normal">#2FC86B</color>
+    <color name="color_high">#FF8A65</color>
+
+    <color name="color_header">#D9F9E4</color>
+    <color name="color_status">#EFFBF2</color>
+</resources>
