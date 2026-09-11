@@ -37,6 +37,48 @@
             android:layout_weight="1" />
 
         <TextView
+            android:id="@+id/tvAi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_input"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="AI 建议"
+            android:textColor="@color/color_title_dark"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvAgp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_input"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="AGP 报告"
+            android:textColor="@color/color_title_dark"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_input"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="设置"
+            android:textColor="@color/color_title_dark"
+            android:textSize="12sp" />
+
+        <TextView
             android:id="@+id/tvToday"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

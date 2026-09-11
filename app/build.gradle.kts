@@ -10,8 +10,8 @@ android {
         applicationId = "com.sugarpal.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     buildTypes {
@@ -39,7 +39,7 @@ dependencies {
 
 // ================= 交付物命名规范（产品名-版本号） =================
 // 版本号变更时，需同步修改 defaultConfig.versionName 与本处 appVersion
-val appVersion = "1.1.0"
+val appVersion = "1.2.0"
 val apkBaseName = "糖伴SugarPal-$appVersion"
 
 // 构建完成后（assembleDebug / assembleRelease）自动执行：

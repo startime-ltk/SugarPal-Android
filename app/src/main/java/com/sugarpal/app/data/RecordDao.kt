@@ -32,6 +32,12 @@ class RecordDao(context: Context) {
     fun delete(id: Int): Int =
         db.delete(table, "id = ?", arrayOf(id.toString()))
 
+    /** 清空全部血糖记录（设置界面「清空数据」） */
+    fun deleteAll(): Int = db.delete(table, null, null)
+
+    /** 清空全部用餐时间 */
+    fun deleteAllMealTimes(): Int = db.delete("meal_times", null, null)
+
     /** 去重判断：同一时间（精确到秒）+ 同一数值视为重复（与 PC 端 CsvImportService 口径一致） */
     fun countByTimeAndValue(recordTime: LocalDateTime?, bloodSugar: Double): Int {
         if (recordTime == null) return 0
