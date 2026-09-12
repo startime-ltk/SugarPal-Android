@@ -18,10 +18,12 @@ object SettingsDialog {
     fun show(
         activity: Activity,
         recordCount: Int,
+        versionName: String,
         onImport: () -> Unit,
         onExport: () -> Unit,
         onTemplate: () -> Unit,
-        onClear: () -> Unit
+        onClear: () -> Unit,
+        onAi: () -> Unit
     ) {
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -78,12 +80,10 @@ object SettingsDialog {
 
         addSection("其他")
         addItem("清空全部数据", "删除全部血糖记录与用餐时间，操作不可撤销", onClear)
-        addItem("AI 多模型建议", "血糖建议功能开发中，将在后续版本开放") {
-            Toast.makeText(activity, "AI 建议功能将在下个版本开放", Toast.LENGTH_SHORT).show()
-        }
+        addItem("AI 多模型建议", "支持 6 家模型，配置 API Key 后可生成控糖建议", onAi)
 
         root.addView(TextView(activity).apply {
-            text = "糖伴 SugarPal Android v1.1.0"
+            text = "糖伴 SugarPal Android v$versionName"
             textSize = 11f
             gravity = Gravity.CENTER
             setTextColor(activity.getColor(R.color.color_title))

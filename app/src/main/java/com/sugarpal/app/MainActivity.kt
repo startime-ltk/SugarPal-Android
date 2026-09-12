@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.bloodsugar.util.PeriodClassifier
 import com.sugarpal.app.data.AiConfig
 import com.sugarpal.app.data.AgpCalculator
@@ -59,6 +61,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Android 15+ 强制 edge-to-edge：为根布局补系统栏内边距，避免标题栏被状态栏遮挡
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+
         dao = RecordDao(this)
 
         recordContainer = findViewById(R.id.recordContainer)
@@ -126,6 +136,7 @@ class MainActivity : AppCompatActivity() {
         SettingsDialog.show(
             this,
             dao.findAll().size,
+            BuildConfig.VERSION_NAME,
             onImport = {
                 runCatching {
                     importCsv.launch(
@@ -148,7 +159,8 @@ class MainActivity : AppCompatActivity() {
                 pendingTemplate = true
                 saveCsv.launch("糖伴SugarPal-导入模板.csv")
             },
-            onClear = { confirmClearAll() }
+            onClear = { confirmClearAll() },
+            onAi = { AiSuggestionDialog.show(this, dao, aiConfig) }
         )
     }
 

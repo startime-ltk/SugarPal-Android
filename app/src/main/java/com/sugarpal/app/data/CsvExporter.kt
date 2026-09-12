@@ -40,10 +40,23 @@ object CsvExporter {
         out.use { it.write(render(records).toByteArray(Charsets.UTF_8)) }
     }
 
+    /** 餐别列优先取值集合：命中则导出 mealType，否则回退 mealPeriod */
+    private val MEAL_TYPE_LABELS = setOf("早餐", "午餐", "晚餐", "加餐")
+
     private fun row(r: BloodSugarRecord): String {
         val time = r.recordTime?.format(TS) ?: ""
         val sugar = String.format(Locale.US, "%.1f", r.bloodSugar)
-        return listOf(time, sugar, r.mealPeriod ?: "", r.note ?: "").joinToString(",") { escape(it) }
+        return listOf(time, sugar, periodLabel(r), r.note ?: "").joinToString(",") { escape(it) }
+    }
+
+    /**
+     * 餐别列取值：记录的 mealType 为「早餐 / 午餐 / 晚餐 / 加餐」时导出 mealType，
+     * 否则导出 mealPeriod（保留「空腹 / 餐后1h / 餐后2h / 餐后3h」等时段精度）。
+     */
+    private fun periodLabel(r: BloodSugarRecord): String {
+        val type = (r.mealType ?: "").trim()
+        if (type.isNotEmpty() && MEAL_TYPE_LABELS.contains(type)) return type
+        return r.mealPeriod ?: ""
     }
 
     private fun escape(value: String): String {

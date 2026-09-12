@@ -156,9 +156,10 @@ class RecordDao(context: Context) {
     }
 
     private fun toValues(r: BloodSugarRecord): ContentValues = ContentValues().apply {
-        put("record_time", TimeFmt.format(r.recordTime))
+        // recordTime / mealTime 允许为空（未设置用餐时间时 mealTime 为 null），做空值安全处理
+        put("record_time", r.recordTime?.let { TimeFmt.format(it) })
         put("blood_sugar", r.bloodSugar)
-        put("meal_time", TimeFmt.format(r.mealTime))
+        put("meal_time", r.mealTime?.let { TimeFmt.format(it) })
         put("meal_period", r.mealPeriod)
         put("meal_type", r.mealType)
         put("note", r.note)
