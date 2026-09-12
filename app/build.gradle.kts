@@ -1,12 +1,56 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
 
-// ================= 版本号单一来源（只需维护这两行） =================
-// defaultConfig 与交付物命名均引用此处的 appVersion / appVersionCode，避免多处不同步。
-// 每次出包前可执行：gradlew.bat bumpVersion  —— 自动 versionCode +1、versionName patch 位 +1
-val appVersionCode = 4
-val appVersion = "1.2.1"
+// ================= 版本号单一来源：version.properties（每次构建自动递增） =================
+// 规则：
+//   1) 版本号只存于 安卓端/version.properties，defaultConfig 与交付物命名均引用其值；
+//   2) 执行 assemble / bundle / deliverApk 类构建任务时，自动 versionCode +1、versionName 的 PATCH 位 +1；
+//   3) 递增发生在配置阶段且发生于本次构建取值之前，因此「APK 内 versionName = 成品文件名」始终一致；
+//   4) 非构建调用（IDE 同步、gradlew tasks 等）只读取、不递增。
+val versionPropsFile = rootProject.file("version.properties")
+
+fun bumpPatch(name: String): String {
+    val parts = name.trim().split(".")
+    if (parts.size != 3) throw GradleException("versionName 需为 x.y.z 格式，当前为：$name")
+    val patch = parts[2].toIntOrNull() ?: throw GradleException("versionName PATCH 位不是数字：$name")
+    return "${parts[0]}.${parts[1]}.${patch + 1}"
+}
+
+fun isBuildInvocation(): Boolean =
+    gradle.startParameter.taskNames.map { it.lowercase() }.any { n ->
+        n.contains("assemble") || n.contains("bundle") || n.contains("deliverapk") ||
+            n == "build" || n.endsWith(":build")
+    }
+
+fun loadVersionProps(): Pair<Int, String> {
+    val props = Properties()
+    versionPropsFile.inputStream().use { props.load(it) }
+    val code = props.getProperty("versionCode")?.trim()?.toIntOrNull()
+        ?: throw GradleException("version.properties 缺少合法的 versionCode")
+    val name = props.getProperty("versionName")?.trim()
+        ?: throw GradleException("version.properties 缺少 versionName")
+    return code to name
+}
+
+fun saveVersionProps(code: Int, name: String) {
+    versionPropsFile.writeText("versionCode=$code\nversionName=$name\n", Charsets.UTF_8)
+}
+
+val (appVersionCode, appVersion) = run {
+    val (code, name) = loadVersionProps()
+    if (!isBuildInvocation()) {
+        code to name
+    } else {
+        val newCode = code + 1
+        val newName = bumpPatch(name)
+        saveVersionProps(newCode, newName)
+        println("[version] 本次构建自动递增：versionCode $code -> $newCode，versionName $name -> $newName")
+        newCode to newName
+    }
+}
 
 android {
     namespace = "com.sugarpal.app"
@@ -44,7 +88,7 @@ dependencies {
 }
 
 // ================= 交付物命名规范（产品名-版本号） =================
-// 版本号由文件顶部 appVersion 单一来源驱动，无需重复维护
+// 版本号由 安卓端/version.properties 单一来源驱动（本次构建已自动递增），无需重复维护
 val apkBaseName = "糖伴SugarPal-$appVersion"
 
 // 构建完成后（assembleDebug / assembleRelease）自动执行：
@@ -77,39 +121,6 @@ listOf("Debug", "Release").forEach { variantName ->
     }
 }
 
-// ================= 版本号自动递增（后续每次出包前执行） =================
-// 用法：gradlew.bat bumpVersion
-// 规则：versionCode +1，versionName 的 patch 位 +1（如 1.2.1 -> 1.2.2），并回写本文件顶部两行
-tasks.register("bumpVersion") {
-    group = "versioning"
-    description = "递增版本号：versionCode +1 且 versionName patch 位 +1，并回写 build.gradle.kts"
-
-    doLast {
-        val scriptFile = file("build.gradle.kts")
-        var text = scriptFile.readText()
-
-        val codeRegex = Regex("val appVersionCode = (\\d+)")
-        val nameRegex = Regex("val appVersion = \"(\\d+)\\.(\\d+)\\.(\\d+)\"")
-
-        val codeMatch = codeRegex.find(text)
-            ?: throw GradleException("未找到 appVersionCode 定义，请检查 build.gradle.kts")
-        val nameMatch = nameRegex.find(text)
-            ?: throw GradleException("未找到 appVersion 定义，请检查 build.gradle.kts")
-
-        val oldCode = codeMatch.groupValues[1].toInt()
-        val major = nameMatch.groupValues[1]
-        val minor = nameMatch.groupValues[2]
-        val patch = nameMatch.groupValues[3].toInt()
-
-        val newCode = oldCode + 1
-        val newName = "$major.$minor.${patch + 1}"
-
-        text = codeRegex.replace(text) { "val appVersionCode = $newCode" }
-        text = nameRegex.replace(text) { "val appVersion = \"$newName\"" }
-        scriptFile.writeText(text)
-
-        println("[bumpVersion] versionCode: $oldCode -> $newCode")
-        println("[bumpVersion] versionName: $major.$minor.$patch -> $newName")
-        println("[bumpVersion] 已完成，请执行 assembleDebug 出包")
-    }
-}
+// ================= 版本号（已改为构建时自动递增，无需手动任务） =================
+// 单一来源：安卓端/version.properties；每次执行 assemble / bundle / deliverApk / build 类构建任务自动递增。
+// 如需在不出包的情况下查询当前版本号，直接查看 安卓端/version.properties 即可。
