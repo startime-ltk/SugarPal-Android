@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 健康摘要 / AGP 报告分享用临时 PDF 目录（cacheDir/summary） -->
+    <cache-path name="summary" path="summary/" />
+</paths>

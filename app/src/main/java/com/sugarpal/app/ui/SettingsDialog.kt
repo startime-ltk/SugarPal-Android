@@ -23,7 +23,9 @@ object SettingsDialog {
         onExport: () -> Unit,
         onTemplate: () -> Unit,
         onClear: () -> Unit,
-        onAi: () -> Unit
+        onAi: () -> Unit,
+        onAlarm: () -> Unit,
+        onShareSummary: () -> Unit
     ) {
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -77,6 +79,10 @@ object SettingsDialog {
         addItem("导入血糖数据（CSV）", "从手机文件中选择 CSV/TXT，解析后可预览再入库", onImport)
         addItem("导出全部数据（CSV）", "导出当前 $recordCount 条记录，可在 PC 端糖伴中导入", onExport)
         addItem("下载导入模板", "生成含示例数据的 CSV 模板，UTF-8 编码可直接用 Excel 打开", onTemplate)
+
+        addSection("监测与共享")
+        addItem("报警阈值设置", "设置血糖异常报警的低/高阈值（默认 3.9 / 13.9 mmol/L），录入后即时本地提醒", onAlarm)
+        addItem("分享健康摘要", "生成近 30 天健康摘要 PDF，可分享给家人或医生（微信/QQ/邮件等）", onShareSummary)
 
         addSection("其他")
         addItem("清空全部数据", "删除全部血糖记录与用餐时间，操作不可撤销", onClear)

@@ -1,25 +1,33 @@
 package com.sugarpal.app
 
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.bloodsugar.util.PeriodClassifier
 import com.sugarpal.app.data.AiConfig
 import com.sugarpal.app.data.AgpCalculator
 import com.sugarpal.app.data.AgpPdfExporter
+import com.sugarpal.app.data.AlarmConfig
 import com.sugarpal.app.data.CsvExporter
 import com.sugarpal.app.data.CsvImporter
+import com.sugarpal.app.data.HealthSummaryService
+import com.sugarpal.app.data.NotificationHelper
 import com.sugarpal.app.data.RecordDao
+import com.sugarpal.app.data.SummaryPdfExporter
 import com.sugarpal.app.data.TimeFmt
 import com.sugarpal.app.ui.AddRecordDialog
 import com.sugarpal.app.ui.AgpReportDialog
@@ -29,9 +37,11 @@ import com.sugarpal.app.ui.ImportPreviewDialog
 import com.sugarpal.app.ui.RecordRowBinder
 import com.sugarpal.app.ui.SettingsDialog
 import com.sugarpal.app.ui.TrendDialog
+import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -101,13 +111,18 @@ class MainActivity : AppCompatActivity() {
 
         // AGP 标准化葡萄糖图谱（规格 9.11）
         findViewById<View>(R.id.tvAgp).setOnClickListener {
-            AgpReportDialog.show(this, dao) { report ->
-                pendingAgpReport = report
-                val name = "糖伴SugarPal-AGP报告-${TimeFmt.formatDate(LocalDate.now())}.pdf"
-                runCatching { saveAgpPdf.launch(name) }.onFailure {
-                    Toast.makeText(this, "无法打开保存对话框：${it.message}", Toast.LENGTH_LONG).show()
-                }
-            }
+            AgpReportDialog.show(
+                this,
+                dao,
+                onExportPdf = { report ->
+                    pendingAgpReport = report
+                    val name = "糖伴SugarPal-AGP报告-${TimeFmt.formatDate(LocalDate.now())}.pdf"
+                    runCatching { saveAgpPdf.launch(name) }.onFailure {
+                        Toast.makeText(this, "无法打开保存对话框：${it.message}", Toast.LENGTH_LONG).show()
+                    }
+                },
+                onShareSummary = { shareSummary() }
+            )
         }
     }
 
@@ -160,7 +175,9 @@ class MainActivity : AppCompatActivity() {
                 saveCsv.launch("糖伴SugarPal-导入模板.csv")
             },
             onClear = { confirmClearAll() },
-            onAi = { AiSuggestionDialog.show(this, dao, aiConfig) }
+            onAi = { AiSuggestionDialog.show(this, dao, aiConfig) },
+            onAlarm = { showAlarmThresholdDialog() },
+            onShareSummary = { shareSummary() }
         )
     }
 
@@ -187,6 +204,20 @@ class MainActivity : AppCompatActivity() {
                         result.text
                     }
                     Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+                    // P0-1 导入后即时判定：统计本次导入中超出报警阈值的记录并汇总提醒
+                    val alarmLow = AlarmConfig.low(this)
+                    val alarmHigh = AlarmConfig.high(this)
+                    val okRows = preview.rows.filter {
+                        it.status == CsvImporter.STATUS_OK && it.record != null
+                    }
+                    val lowCount = okRows.count { it.record!!.bloodSugar < alarmLow }
+                    val highCount = okRows.count { it.record!!.bloodSugar > alarmHigh }
+                    if (lowCount > 0 || highCount > 0) {
+                        NotificationHelper.vibrate(this)
+                        NotificationHelper.notifyBatchAlarm(this, lowCount, highCount, alarmLow, alarmHigh)
+                    }
+
                     refreshAll()
                 }
             }
@@ -233,6 +264,98 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    // ---------------- P0-1 报警阈值设置（本地配置，默认 3.9 / 13.9） ----------------
+
+    private fun showAlarmThresholdDialog() {
+        val low = AlarmConfig.low(this)
+        val high = AlarmConfig.high(this)
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+        }
+        root.addView(TextView(this).apply {
+            text = "血糖低于低阈值或高于高阈值时，将在录入/导入后弹出本地提醒（仅本机，不联网）。"
+            textSize = 12.5f
+            setTextColor(getColor(R.color.color_title))
+            setPadding(0, dp(4), 0, dp(10))
+        })
+        val etLow = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(String.format(Locale.US, "%.1f", low))
+            hint = "低阈值（默认 3.9）"
+        }
+        val etHigh = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(String.format(Locale.US, "%.1f", high))
+            hint = "高阈值（默认 13.9）"
+        }
+        root.addView(
+            etLow,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+        )
+        root.addView(
+            etHigh,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("报警阈值设置")
+            .setView(root)
+            .setPositiveButton("保存") { _, _ ->
+                val newLow = etLow.text.toString().trim().toDoubleOrNull()
+                val newHigh = etHigh.text.toString().trim().toDoubleOrNull()
+                when {
+                    newLow == null || newHigh == null ->
+                        Toast.makeText(this, "请输入有效的数值", Toast.LENGTH_SHORT).show()
+                    newLow <= 0 || newHigh > 50 || newLow >= newHigh ->
+                        Toast.makeText(this, "需满足 0 < 低阈值 < 高阈值 ≤ 50", Toast.LENGTH_SHORT).show()
+                    else -> {
+                        AlarmConfig.save(this, newLow, newHigh)
+                        Toast.makeText(this, "报警阈值已保存", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    // ---------------- P0-2 健康摘要分享（复用 AGP PDF 技术栈 + FileProvider） ----------------
+
+    private fun shareSummary() {
+        val summary = HealthSummaryService.build(this, dao.findAll())
+        val dir = File(cacheDir, "summary")
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, "糖伴SugarPal-健康摘要-${TimeFmt.formatDate(LocalDate.now())}.pdf")
+        val ok = runCatching {
+            file.outputStream().use { out -> SummaryPdfExporter.export(out, summary) }
+        }.isSuccess
+        if (!ok) {
+            Toast.makeText(this, "生成健康摘要失败", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching {
+            startActivity(Intent.createChooser(send, "分享健康摘要"))
+        }.onFailure {
+            Toast.makeText(this, "没有可用的分享应用：${it.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onResume() {

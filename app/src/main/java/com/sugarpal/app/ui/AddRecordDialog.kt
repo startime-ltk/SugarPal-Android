@@ -14,7 +14,10 @@ import androidx.appcompat.app.AlertDialog
 import com.bloodsugar.model.BloodSugarRecord
 import com.bloodsugar.util.PeriodClassifier
 import com.sugarpal.app.R
+import com.sugarpal.app.data.AlarmConfig
+import com.sugarpal.app.data.AlarmService
 import com.sugarpal.app.data.MealDescriber
+import com.sugarpal.app.data.NotificationHelper
 import com.sugarpal.app.data.RecordDao
 import com.sugarpal.app.data.TimeFmt
 import java.time.LocalDate
@@ -169,6 +172,19 @@ class AddRecordDialog(
 
                 val record = BloodSugarRecord(currentTime, value, mealTime, period, mealType, note)
                 dao.insert(record)
+
+                // P0-1 异常报警：录入后即时判定，超阈值发系统通知 + 震动（仅本地提醒）
+                val alarmLow = AlarmConfig.low(activity)
+                val alarmHigh = AlarmConfig.high(activity)
+                val state = AlarmService.evaluate(value, alarmLow, alarmHigh)
+                if (AlarmService.isAlarm(state)) {
+                    NotificationHelper.vibrate(activity)
+                    NotificationHelper.notifyAlarm(
+                        activity, value, alarmLow, alarmHigh,
+                        state == AlarmService.STATE_LOW
+                    )
+                }
+
                 Toast.makeText(activity, "已保存", Toast.LENGTH_SHORT).show()
                 onSaved()
                 dialog.dismiss()

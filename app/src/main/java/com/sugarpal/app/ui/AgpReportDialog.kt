@@ -22,7 +22,12 @@ import java.util.Locale
  */
 object AgpReportDialog {
 
-    fun show(activity: Activity, dao: RecordDao, onExportPdf: (AgpCalculator.AgpReport) -> Unit = {}) {
+    fun show(
+        activity: Activity,
+        dao: RecordDao,
+        onExportPdf: (AgpCalculator.AgpReport) -> Unit = {},
+        onShareSummary: () -> Unit = {}
+    ) {
         val d = activity.resources.displayMetrics.density
         fun dp(v: Int): Int = (v * d).toInt()
 
@@ -42,6 +47,9 @@ object AgpReportDialog {
             .setView(scroll)
             .setPositiveButton("导出 PDF") { _, _ ->
                 currentReport?.let(onExportPdf)
+            }
+            .setNeutralButton("分享摘要") { _, _ ->
+                onShareSummary()
             }
             .setNegativeButton("关闭", null)
             .create()
