@@ -2,4 +2,6 @@
 <paths>
     <!-- 健康摘要 / AGP 报告分享用临时 PDF 目录（cacheDir/summary） -->
     <cache-path name="summary" path="summary/" />
+    <!-- P0-3 应用内更新：下载的 APK 暂存目录（cacheDir/update），供安装器读取 -->
+    <cache-path name="update" path="update/" />
 </paths>

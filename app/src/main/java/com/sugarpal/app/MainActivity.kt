@@ -3,7 +3,9 @@ package com.sugarpal.app
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
@@ -29,6 +31,10 @@ import com.sugarpal.app.data.NotificationHelper
 import com.sugarpal.app.data.RecordDao
 import com.sugarpal.app.data.SummaryPdfExporter
 import com.sugarpal.app.data.TimeFmt
+import com.sugarpal.app.data.UpdateChecker
+import com.sugarpal.app.data.UpdateConfig
+import com.sugarpal.app.data.UpdateDownloader
+import com.sugarpal.app.data.UpdateInfo
 import com.sugarpal.app.ui.AddRecordDialog
 import com.sugarpal.app.ui.AgpReportDialog
 import com.sugarpal.app.ui.AiSuggestionDialog
@@ -57,6 +63,9 @@ class MainActivity : AppCompatActivity() {
 
     /** 标记本次文件保存动作是「导出模板」还是「导出数据」 */
     private var pendingTemplate = false
+
+    /** P0-3 应用内更新：已下载待安装的 APK（等待未知来源授权后继续安装） */
+    private var pendingInstallApk: File? = null
 
     /** SAF 选择待导入的 CSV/TXT 文件 */
     private val importCsv = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -177,7 +186,10 @@ class MainActivity : AppCompatActivity() {
             onClear = { confirmClearAll() },
             onAi = { AiSuggestionDialog.show(this, dao, aiConfig) },
             onAlarm = { showAlarmThresholdDialog() },
-            onShareSummary = { shareSummary() }
+            onShareSummary = { shareSummary() },
+            onUpdateSource = { showUpdateSourceDialog() },
+            onCheckUpdate = { checkUpdate() },
+            updateSourceUrl = UpdateConfig.sourceUrl(this)
         )
     }
 
@@ -358,9 +370,159 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------------- P0-3 应用内更新（检查 → 下载 → 安装） ----------------
+
+    /** 设置页：更新源地址输入（保存到本机 SharedPreferences） */
+    private fun showUpdateSourceDialog() {
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        val et = EditText(this).apply {
+            textSize = 13f
+            setSingleLine(true)
+            setText(UpdateConfig.sourceUrl(this@MainActivity))
+            hint = "https://example.com/update.json"
+            setBackgroundResource(R.drawable.bg_input)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+        }
+        box.addView(
+            TextView(this).apply {
+                text = "更新源为 HTTP(S) JSON，格式：\n" +
+                    "{\"versionName\":\"x.y.z\",\"versionCode\":N,\"apkUrl\":\"...\",\"note\":\"更新说明\"}"
+                textSize = 11.5f
+                setTextColor(getColor(R.color.color_title))
+                setPadding(0, 0, 0, dp(8))
+            }
+        )
+        box.addView(et)
+        AlertDialog.Builder(this)
+            .setTitle("更新源地址")
+            .setView(box)
+            .setPositiveButton("保存") { _, _ ->
+                val url = et.text.toString().trim()
+                if (url.isBlank()) {
+                    Toast.makeText(this, "更新源地址不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                UpdateConfig.saveSourceUrl(this, url)
+                Toast.makeText(this, "更新源地址已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 检查更新：后台请求更新源 JSON，对比版本后提示 */
+    private fun checkUpdate() {
+        val url = UpdateConfig.sourceUrl(this)
+        if (url.isBlank()) {
+            Toast.makeText(this, "请先在设置中配置更新源地址", Toast.LENGTH_LONG).show()
+            return
+        }
+        Toast.makeText(this, "正在检查更新…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val info = try {
+                UpdateChecker.fetch(url)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "检查更新失败：${e.message}", Toast.LENGTH_LONG).show()
+                }
+                return@Thread
+            }
+            runOnUiThread {
+                val hasNew = info.versionCode > BuildConfig.VERSION_CODE
+                if (!hasNew || info.apkUrl.isBlank()) {
+                    Toast.makeText(this, "已是最新版本", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("发现新版本 v${info.versionName}")
+                    .setMessage(
+                        buildString {
+                            if (info.note.isNotBlank()) append(info.note).append("\n\n")
+                            append("当前版本 v${BuildConfig.VERSION_NAME}，是否立即下载更新？")
+                        }
+                    )
+                    .setPositiveButton("立即更新") { _, _ -> downloadAndInstall(info) }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+        }.start()
+    }
+
+    /** 下载 APK 到缓存目录，完成后处理 Android 8.0+ 未知来源授权并安装 */
+    private fun downloadAndInstall(info: UpdateInfo) {
+        val file = File(cacheDir, "update/糖伴SugarPal-${info.versionName}.apk")
+        Toast.makeText(this, "正在下载更新…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = try {
+                UpdateDownloader.download(info.apkUrl, file)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "下载失败：${e.message}", Toast.LENGTH_LONG).show()
+                }
+                return@Thread
+            }
+            runOnUiThread {
+                if (!ok) {
+                    Toast.makeText(this, "下载失败：文件为空", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                    pendingInstallApk = file
+                    AlertDialog.Builder(this)
+                        .setTitle("需要安装权限")
+                        .setMessage("Android 8.0+ 要求先允许「安装未知应用」，才能安装下载的 APK。是否前往系统设置开启？")
+                        .setPositiveButton("去开启") { _, _ ->
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:$packageName")
+                                )
+                            )
+                        }
+                        .setNegativeButton("取消") { _, _ ->
+                            Toast.makeText(this, "安装已取消，APK 已下载到缓存目录", Toast.LENGTH_LONG).show()
+                        }
+                        .show()
+                } else {
+                    confirmInstall(file)
+                }
+            }
+        }.start()
+    }
+
+    /** 下载完成确认 → 经 FileProvider 调系统安装器 */
+    private fun confirmInstall(file: File) {
+        AlertDialog.Builder(this)
+            .setTitle("下载完成")
+            .setMessage("${file.name} 已下载完成，是否立即安装？")
+            .setPositiveButton("安装") { _, _ ->
+                val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                runCatching { startActivity(intent) }.onFailure {
+                    Toast.makeText(this, "无法打开安装器：${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     override fun onResume() {
         super.onResume()
         refreshAll()
+        // P0-3 从系统「安装未知应用」授权页返回后，继续完成安装
+        val pending = pendingInstallApk
+        if (pending != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
+            pendingInstallApk = null
+            confirmInstall(pending)
+        }
     }
 
     /** 当前业务日（凌晨 4 点边界） */

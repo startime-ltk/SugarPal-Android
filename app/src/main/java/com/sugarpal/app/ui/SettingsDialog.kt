@@ -25,7 +25,10 @@ object SettingsDialog {
         onClear: () -> Unit,
         onAi: () -> Unit,
         onAlarm: () -> Unit,
-        onShareSummary: () -> Unit
+        onShareSummary: () -> Unit,
+        onUpdateSource: () -> Unit,
+        onCheckUpdate: () -> Unit,
+        updateSourceUrl: String
     ) {
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -83,6 +86,14 @@ object SettingsDialog {
         addSection("监测与共享")
         addItem("报警阈值设置", "设置血糖异常报警的低/高阈值（默认 3.9 / 13.9 mmol/L），录入后即时本地提醒", onAlarm)
         addItem("分享健康摘要", "生成近 30 天健康摘要 PDF，可分享给家人或医生（微信/QQ/邮件等）", onShareSummary)
+
+        addSection("软件更新")
+        addItem(
+            "更新源地址",
+            if (updateSourceUrl.isBlank()) "未配置，点击填写更新源 JSON 地址（HTTP/HTTPS）" else "已配置，点击可修改更新源地址",
+            onUpdateSource
+        )
+        addItem("检查更新", "连接更新源检查新版本，发现新版本后可下载并直接安装", onCheckUpdate)
 
         addSection("其他")
         addItem("清空全部数据", "删除全部血糖记录与用餐时间，操作不可撤销", onClear)
