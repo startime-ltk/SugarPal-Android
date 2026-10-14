@@ -189,7 +189,9 @@ class MainActivity : AppCompatActivity() {
             onShareSummary = { shareSummary() },
             onUpdateSource = { showUpdateSourceDialog() },
             onCheckUpdate = { checkUpdate() },
-            updateSourceUrl = UpdateConfig.sourceUrl(this)
+            onUpdateMirror = { showUpdateMirrorDialog() },
+            updateSourceUrl = UpdateConfig.sourceUrl(this),
+            mirrorUrl = UpdateConfig.mirrorUrl(this)
         )
     }
 
@@ -403,12 +405,46 @@ class MainActivity : AppCompatActivity() {
             .setView(box)
             .setPositiveButton("保存") { _, _ ->
                 val url = et.text.toString().trim()
-                if (url.isBlank()) {
-                    Toast.makeText(this, "更新源地址不能为空", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
                 UpdateConfig.saveSourceUrl(this, url)
-                Toast.makeText(this, "更新源地址已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, if (url.isBlank()) "已恢复默认更新源（GitHub Releases）" else "更新源地址已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 下载加速地址设置：留空恢复内置镜像列表 */
+    private fun showUpdateMirrorDialog() {
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        val et = EditText(this).apply {
+            textSize = 13f
+            setSingleLine(true)
+            setText(UpdateConfig.mirrorUrl(this@MainActivity))
+            hint = "https://ghproxy.net/"
+            setBackgroundResource(R.drawable.bg_input)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+        }
+        box.addView(
+            TextView(this).apply {
+                text = "留空使用内置镜像（ghproxy.net / github.moeyy.xyz / gh.llkk.cc），" +
+                    "下载失败会自动回退下一项或直连。自定义示例：https://ghproxy.net/"
+                textSize = 11.5f
+                setTextColor(getColor(R.color.color_title))
+                setPadding(0, 0, 0, dp(8))
+            }
+        )
+        box.addView(et)
+        AlertDialog.Builder(this)
+            .setTitle("下载加速地址")
+            .setView(box)
+            .setPositiveButton("保存") { _, _ ->
+                val url = et.text.toString().trim()
+                UpdateConfig.saveMirrorUrl(this, url)
+                Toast.makeText(this, if (url.isBlank()) "已恢复内置加速镜像" else "下载加速地址已保存", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
             .show()
@@ -416,11 +452,7 @@ class MainActivity : AppCompatActivity() {
 
     /** 检查更新：后台请求更新源 JSON，对比版本后提示 */
     private fun checkUpdate() {
-        val url = UpdateConfig.sourceUrl(this)
-        if (url.isBlank()) {
-            Toast.makeText(this, "请先在设置中配置更新源地址", Toast.LENGTH_LONG).show()
-            return
-        }
+        val url = UpdateConfig.sourceUrl(this).ifBlank { UpdateConfig.DEFAULT_SOURCE_URL }
         Toast.makeText(this, "正在检查更新…", Toast.LENGTH_SHORT).show()
         Thread {
             val info = try {
@@ -432,7 +464,11 @@ class MainActivity : AppCompatActivity() {
                 return@Thread
             }
             runOnUiThread {
-                val hasNew = info.versionCode > BuildConfig.VERSION_CODE
+                val hasNew = if (info.versionCode > 0) {
+                    info.versionCode > BuildConfig.VERSION_CODE
+                } else {
+                    UpdateChecker.compareVersions(info.versionName, BuildConfig.VERSION_NAME) > 0
+                }
                 if (!hasNew || info.apkUrl.isBlank()) {
                     Toast.makeText(this, "已是最新版本", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
@@ -454,11 +490,14 @@ class MainActivity : AppCompatActivity() {
 
     /** 下载 APK 到缓存目录，完成后处理 Android 8.0+ 未知来源授权并安装 */
     private fun downloadAndInstall(info: UpdateInfo) {
-        val file = File(cacheDir, "update/糖伴SugarPal-${info.versionName}.apk")
+        val apkName = info.apkName.ifBlank { "糖伴SugarPal-${info.versionName}.apk" }
+        val file = File(cacheDir, "update/$apkName")
         Toast.makeText(this, "正在下载更新…", Toast.LENGTH_SHORT).show()
+        val mirrors = UpdateConfig.mirrorUrl(this).takeIf { it.isNotBlank() }?.let { listOf(it) }
+            ?: UpdateConfig.DEFAULT_MIRRORS
         Thread {
             val ok = try {
-                UpdateDownloader.download(info.apkUrl, file)
+                UpdateDownloader.downloadWithMirrors(info.apkUrl, mirrors, file)
             } catch (e: Exception) {
                 runOnUiThread {
                     Toast.makeText(this, "下载失败：${e.message}", Toast.LENGTH_LONG).show()

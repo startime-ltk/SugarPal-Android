@@ -28,7 +28,9 @@ object SettingsDialog {
         onShareSummary: () -> Unit,
         onUpdateSource: () -> Unit,
         onCheckUpdate: () -> Unit,
-        updateSourceUrl: String
+        onUpdateMirror: () -> Unit,
+        updateSourceUrl: String,
+        mirrorUrl: String
     ) {
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
@@ -90,8 +92,13 @@ object SettingsDialog {
         addSection("软件更新")
         addItem(
             "更新源地址",
-            if (updateSourceUrl.isBlank()) "未配置，点击填写更新源 JSON 地址（HTTP/HTTPS）" else "已配置，点击可修改更新源地址",
+            if (updateSourceUrl.isBlank()) "未配置，默认使用 GitHub Releases（v1.2.7 起）" else "已配置，点击可修改更新源地址",
             onUpdateSource
+        )
+        addItem(
+            "下载加速地址",
+            if (mirrorUrl.isBlank()) "未配置，使用内置镜像（ghproxy.net 等，失败自动回退直连）" else "已配置，点击可修改加速镜像前缀",
+            onUpdateMirror
         )
         addItem("检查更新", "连接更新源检查新版本，发现新版本后可下载并直接安装", onCheckUpdate)
 
