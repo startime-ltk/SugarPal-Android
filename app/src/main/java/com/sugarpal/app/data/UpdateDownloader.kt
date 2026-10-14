@@ -1,5 +1,6 @@
 package com.sugarpal.app.data
 
+import android.util.Log
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -67,6 +68,7 @@ object UpdateDownloader {
         try {
             download(url, target, timeoutMs)
         } catch (e: Exception) {
+            Log.e("UpdateDL", "tryDownload failed url=$url msg=${e.message}")
             if (target.exists()) target.delete()
             false
         }
