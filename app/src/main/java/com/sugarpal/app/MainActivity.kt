@@ -627,18 +627,19 @@ class MainActivity : AppCompatActivity() {
 
         list.forEach { r ->
             val row = LayoutInflater.from(this).inflate(R.layout.item_record, recordContainer, false)
-            RecordRowBinder.bind(this, dao, { todayPanelMealTimes() }, row, r, true) { record ->
-                AlertDialog.Builder(this)
-                    .setTitle("删除这条记录？")
-                    .setMessage("${TimeFmt.full(record.recordTime)} · ${String.format("%.1f", record.bloodSugar)} mmol/L")
-                    .setPositiveButton("删除") { _, _ ->
-                        dao.delete(record.id)
-                        Toast.makeText(this, "已删除", Toast.LENGTH_SHORT).show()
-                        refreshAll()
-                    }
-                    .setNegativeButton("取消", null)
-                    .show()
-            }
+            RecordRowBinder.bind(this, dao, { todayPanelMealTimes() }, row, r, true,
+                onDelete = { record ->
+                    AlertDialog.Builder(this)
+                        .setTitle("删除这条记录？")
+                        .setMessage("${TimeFmt.full(record.recordTime)} · ${String.format("%.1f", record.bloodSugar)} mmol/L")
+                        .setPositiveButton("删除") { _, _ ->
+                            dao.delete(record.id)
+                            Toast.makeText(this, "已删除", Toast.LENGTH_SHORT).show()
+                            refreshAll()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                })
             recordContainer.addView(row)
         }
     }
