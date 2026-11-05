@@ -29,6 +29,12 @@ class RecordDao(context: Context) {
     fun update(record: BloodSugarRecord): Int =
         db.update(table, toValues(record), "id = ?", arrayOf(record.id.toString()))
 
+    /** 仅更新备注（日历补备注用，不动其他字段） */
+    fun updateNote(id: Int, note: String?): Int {
+        val cv = ContentValues().apply { put("note", note) }
+        return db.update(table, cv, "id = ?", arrayOf(id.toString()))
+    }
+
     fun delete(id: Int): Int =
         db.delete(table, "id = ?", arrayOf(id.toString()))
 

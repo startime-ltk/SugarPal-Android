@@ -23,7 +23,8 @@ object RecordRowBinder {
         row: View,
         record: BloodSugarRecord,
         showDelete: Boolean,
-        onDelete: ((BloodSugarRecord) -> Unit)?
+        onDelete: ((BloodSugarRecord) -> Unit)?,
+        onNoteClick: ((BloodSugarRecord) -> Unit)? = null
     ) {
         val dot = row.findViewById<View>(R.id.dotView)
         val tvValue = row.findViewById<TextView>(R.id.tvValue)
@@ -69,5 +70,8 @@ object RecordRowBinder {
 
         btnDelete.visibility = if (showDelete) View.VISIBLE else View.GONE
         btnDelete.setOnClickListener { onDelete?.invoke(record) }
+
+        // 点击整行可补充/修改备注（日历/列表共用，未传回调时保持原行为）
+        row.setOnClickListener { onNoteClick?.invoke(record) }
     }
 }

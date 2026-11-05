@@ -3,6 +3,7 @@ package com.sugarpal.app.ui
 import android.app.Activity
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -36,6 +37,13 @@ class CalendarDialog(
 
         lateinit var dialog: AlertDialog
 
+        fun refreshCalendar() {
+            calendarView.setMonth(month)
+            calendarView.selectedDate = selected
+            calendarView.markedDates = dao.findDistinctDates().mapNotNull { TimeFmt.parseDate(it) }.toSet()
+            tvMonthTitle.text = "${month.year} 年 ${month.monthValue} 月"
+        }
+
         fun refreshDay() {
             tvDayTitle.text = "${TimeFmt.formatDate(selected)} 当天记录"
             dayContainer.removeAllViews()
@@ -50,27 +58,26 @@ class CalendarDialog(
             } else {
                 list.forEach { r ->
                     val row = LayoutInflater.from(activity).inflate(R.layout.item_record, dayContainer, false)
-                    RecordRowBinder.bind(activity, dao, panelMealTimesProvider, row, r, true) { record: BloodSugarRecord ->
-                        dao.delete(record.id)
-                        Toast.makeText(activity, "已删除", Toast.LENGTH_SHORT).show()
-                        calendarView.setMonth(month)
-                        calendarView.selectedDate = selected
-                        calendarView.markedDates =
-                            dao.findDistinctDates().mapNotNull { TimeFmt.parseDate(it) }.toSet()
-                        tvMonthTitle.text = "${month.year} 年 ${month.monthValue} 月"
-                        refreshDay()
-                        onChanged()
-                    }
+                    RecordRowBinder.bind(
+                        activity, dao, panelMealTimesProvider, row, r, true,
+                        onDelete = { record: BloodSugarRecord ->
+                            dao.delete(record.id)
+                            Toast.makeText(activity, "已删除", Toast.LENGTH_SHORT).show()
+                            refreshCalendar()
+                            refreshDay()
+                            onChanged()
+                        },
+                        onNoteClick = { record: BloodSugarRecord ->
+                            showEditNoteDialog(record) {
+                                refreshCalendar()
+                                refreshDay()
+                                onChanged()
+                            }
+                        }
+                    )
                     dayContainer.addView(row)
                 }
             }
-        }
-
-        fun refreshCalendar() {
-            calendarView.setMonth(month)
-            calendarView.selectedDate = selected
-            calendarView.markedDates = dao.findDistinctDates().mapNotNull { TimeFmt.parseDate(it) }.toSet()
-            tvMonthTitle.text = "${month.year} 年 ${month.monthValue} 月"
         }
 
         calendarView.onDateSelected = { d ->
@@ -108,6 +115,36 @@ class CalendarDialog(
 
         refreshCalendar()
         refreshDay()
+        dialog.show()
+    }
+
+    /** 补充/修改备注：展示记录上下文（时间/血糖/餐别），备注选填可清空，保存后刷新 */
+    private fun showEditNoteDialog(record: BloodSugarRecord, onSaved: () -> Unit) {
+        val view = LayoutInflater.from(activity).inflate(R.layout.dialog_edit_note, null)
+        val tvContext = view.findViewById<TextView>(R.id.tvEditNoteContext)
+        val etNote = view.findViewById<EditText>(R.id.etEditNote)
+        val time = if (record.recordTime != null) TimeFmt.full(record.recordTime) else "--"
+        val period = record.mealPeriod?.takeIf { it.isNotBlank() } ?: "空腹"
+        val type = record.mealType?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""
+        tvContext.text = "$time · 血糖 ${String.format("%.1f", record.bloodSugar)} mmol/L · $period$type"
+        etNote.setText(record.note ?: "")
+        etNote.setSelection(etNote.text.length)
+
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle("补充/修改备注")
+            .setView(view)
+            .setPositiveButton("保存", null)
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val note = etNote.text.toString().trim().ifBlank { null }
+                dao.updateNote(record.id, note)
+                Toast.makeText(activity, "备注已保存", Toast.LENGTH_SHORT).show()
+                onSaved()
+                dialog.dismiss()
+            }
+        }
         dialog.show()
     }
 }
