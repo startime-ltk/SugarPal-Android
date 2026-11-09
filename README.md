@@ -55,6 +55,7 @@ cd SugarPal-Android
 - [SugarPal-1.2.10.apk](https://github.com/startime-ltk/SugarPal-Android/releases/download/v1.2.10/SugarPal-1.2.10.apk)（4.2 MB）
 - SHA256：`8954c3b4354758ff03f99fba4fa902a9e2e57be5425f9e7763ae7821af21fcc5`
 - 同一签名证书，新版本**可直接覆盖安装**，无需卸载（仅早期 44 MB 调试版需先卸载一次）。
+- **源码比安装包新**：`v1.2.10` 发布后 `main` 上还有 `ae5c678`（日历视图点击血糖记录可补充 / 修改备注）等 3 个提交，未打进 `SugarPal-1.2.10.apk`，将在 v1.2.11 收口。已发布安装包不替换。
 
 ## 数据与隐私
 
